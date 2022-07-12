@@ -8,9 +8,13 @@ import org.junit.jupiter.api.Test;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
+import javax.annotation.Nonnull;
+import java.io.Console;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
@@ -21,9 +25,17 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class GlwgTest {
     String getResource(String resourceName) throws IOException {
-        return new String(getClass().getClassLoader().getResourceAsStream(resourceName).readAllBytes());
+        if (!resourceName.contains("."))
+            resourceName+=".json";
+        InputStream resource = getClass().getClassLoader().getResourceAsStream(resourceName);
+        if (resource==null) throw new IOException("Resource doesn't exist or resources name is wrong: "+resourceName);
+        return new String(resource.readAllBytes());
     }
-    ClassLoader classLoader = getClass().getClassLoader();
+
+    String getResource(String location, String resourceName) throws IOException {
+        return getResource(location+(location.endsWith("/")?"":"/")+resourceName);
+    }
+
     static long window;
 
     @BeforeAll
@@ -45,68 +57,16 @@ public class GlwgTest {
     }
 
     @Test
-    void windowTest(){
-
-
-        //glfwFreeCallbacks(window);
-
-    }
-
-    @Test
-    void resourcesTest() throws IOException {
-        getClass().getClassLoader().getResource("shaders/basic.frag").openStream();
-    }
-
-    @Test
-    void jsonTest() throws IOException {
-        String shaderProgramName = "basic_shader_program";
-        JSONObject shaderProgramInfo = new JSONObject(new String(classLoader.getResourceAsStream(shaderProgramName+".json").readAllBytes()));
-        Assertions.assertEquals("gShader", shaderProgramInfo.getJSONObject("vertex").getString("name"));
-    }
-
-    @Test
-    void programTest() throws IOException {
-        int vertexShader;
-        int fragmentShader;
-        int program;
-        String shaderProgramName = "basic_shader_program";
-        JSONObject shaderProgramInfo = new JSONObject(new String(classLoader.getResourceAsStream(shaderProgramName+".json").readAllBytes()));
-
-        vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, getResource("shaders/"+shaderProgramInfo.getJSONObject("vertex").getString("name")+".vert"));
-        glCompileShader(vertexShader);
-        //check shader status
-        {int success;
-        success=glGetShaderi(vertexShader, GL_COMPILE_STATUS);
-        assertEquals(1, success);}
-
-        fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, getResource("shaders/"+shaderProgramInfo.getJSONObject("fragment").getString("name")+".frag"));
-        glCompileShader(vertexShader);
-        //check shader status
-        {   int success;
-            success=glGetShaderi(vertexShader, GL_COMPILE_STATUS);
-            assertEquals(1, success);}
-
-        program=glCreateProgram();
-        glAttachShader(program, vertexShader);
-        glAttachShader(program, fragmentShader);
-        glLinkProgram(program);
-
-        //test program status
-        {   int success;
-            success=glGetProgrami(program, GL_LINK_STATUS);
-            assertEquals(1, success);}
-
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
-    }
-
-    @Test
     void modelProgramTest() throws IOException {
         Model testModel = new Model("models/triangle.json");
         //testModel.addShaderProgram("basic_shader_program");
         assertNotEquals(0, testModel.program);
+    }
+
+    @Test
+    void resourceTest() throws IOException {
+        int i = 7;
+        System.out.println((float) 7/2);
     }
 
     @AfterAll

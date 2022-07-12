@@ -1,9 +1,9 @@
 {
   "vertex": {
     "name": "basic2D",
-    "data": "some data"
+    "data": "2"
   },
   "fragment": {
-    "name": "singleColour"
+    "name": "coloured"
   }
 }

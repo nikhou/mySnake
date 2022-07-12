@@ -1,5 +1,9 @@
 package com.nikho.oriens;
 
+import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector2i;
+import org.joml.Vector3f;
 import org.lwjgl.*;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -10,6 +14,8 @@ import java.nio.*;
 
 import java.util.Objects;
 
+import static java.lang.Math.cos;
+import static java.lang.Math.sin;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL20.*;
@@ -22,11 +28,39 @@ public class Main {
     private long window;
 
     Model testModel;
+    Model testSquare;
+    Model head;
+    Vector2i headPosition;
+    Direction direction = Direction.RIGHT;
+    int points = 5;
 
     public void run() {
         System.out.println("Hello LWJGL " + Version.getVersion() + "! "+"Java version: "+System.getProperty("java.version"));
 
         init();
+
+        try {
+            testModel = new Model("triangle.json");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (RuntimeException e){
+            System.out.println(e.getMessage());
+        }
+
+        try {
+            testSquare = new Model("square.json");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        try {
+            head = new Model("head.json");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        testSquare.scale.div(4);
+        head.scale.div(8);
         loop();
 
         Model.cleanUp();
@@ -68,6 +102,14 @@ public class Main {
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
             if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE )
                 glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
+            if (key == GLFW_KEY_UP & direction!= Direction.UP)
+                direction = Direction.UP;
+            if (key == GLFW_KEY_DOWN & direction!= Direction.DOWN)
+                direction = Direction.DOWN;
+            if (key == GLFW_KEY_LEFT & direction!= Direction.LEFT)
+                direction = Direction.LEFT;
+            if (key == GLFW_KEY_RIGHT & direction!= Direction.RIGHT)
+                direction = Direction.RIGHT;
         });
 
         // Get the thread stack and push a new frame
@@ -101,26 +143,66 @@ public class Main {
 
         // Create the OpenGL bindings available for use
         GL.createCapabilities();
-        try {
-            testModel = new Model("models/triangle.json");
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (RuntimeException e){
-            System.out.println(e.getMessage());
-        }
-
-        assert testModel != null;
     }
 
     private void loop() {
+        int [][] field = new int[8][8];
+
+        //set up snakes head position
+        headPosition = new Vector2i(4, 4);
         // This line is critical for LWJGL's interoperation with GLFW'
         // Run the rendering loop until the user has attempted to close
         // the window or has pressed the ESCAPE key.
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+
         while ( !glfwWindowShouldClose(window) ) {
-            glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT); // clear the framebuffer
 
-            testModel.draw();
+            float timeValue = (float) glfwGetTime();
+            int vertexColorLocation = glGetUniformLocation(testSquare.program, "inColour");
+            glUseProgram(testSquare.program);
+
+            //rendering stuff
+            for (int i = 0; i<field.length; i++){
+                int x = i - field.length/2;
+                for (int j = 0; j<field[i].length; j++){
+                    int y = j - field.length/2;
+                    Vector3f pos = new Vector3f((float) x/4,(float) y/4, 0);
+                    if (i==headPosition.x && j==headPosition.y) {
+                        head.rotation = direction.rotation;
+                        glUniform4f(vertexColorLocation, 0.2f, 1f, 0.2f, 1.0f);
+                        //fixing position for scale;
+                        head.position = pos.sub(new Vector3f(-1.0f / 8.0f));
+                        head.draw();
+                    }
+                    else if(field[i][j]>0){
+                        glUniform4f(vertexColorLocation, 0.2f, 1f, 0.2f, 1.0f);
+                        testSquare.position= pos;
+                        testSquare.draw();
+                    }
+                    else if(((i+j)&1)==1) {
+                        glUniform4f(vertexColorLocation, 0.2f, 0.2f, 0.2f, 1.0f);
+                        testSquare.position= pos;
+                        testSquare.draw();
+                    }
+                }
+            }
+
+            //tick
+            if(glfwGetTime()>1){
+                glfwSetTime(0);
+                for (int i = 0; i<field.length; i++){
+                    for (int j = 0; j<field[i].length;j++){
+                        if (field[i][j]>0) field[i][j]--;
+                    }
+                }
+                field[headPosition.x][headPosition.y]=points;
+                headPosition.add(direction.value);
+                headPosition.x = headPosition.x&7;
+                headPosition.y = headPosition.y&7;
+                if (field[headPosition.x][headPosition.y]>0)
+                    break;
+            }
 
             glfwSwapBuffers(window); // swap the color buffers
 
