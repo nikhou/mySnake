@@ -13,9 +13,10 @@ import java.io.IOException;
 import java.nio.*;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
-import static java.lang.Math.cos;
-import static java.lang.Math.sin;
+import static java.lang.Math.*;
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL20.*;
@@ -28,11 +29,26 @@ public class Main {
     private long window;
 
     Model testModel;
-    Model testSquare;
+    Model square;
     Model head;
     Vector2i headPosition;
     Direction direction = Direction.RIGHT;
-    int points = 5;
+    int points = 1;
+    int width = 8;
+
+    private void findFreeSpace(int [][] field, int index, BiConsumer<Integer, Integer> callback){
+        index++;
+        for (int i = 0; i<field.length; i++) {
+            for (int j = 0; j < field[i].length; j++) {
+                if(field[i][j]==0)
+                    index--;
+                if(index==0) {
+                    callback.accept(i, j);
+                    return;
+                }
+            }
+        }
+    }
 
     public void run() {
         System.out.println("Hello LWJGL " + Version.getVersion() + "! "+"Java version: "+System.getProperty("java.version"));
@@ -48,7 +64,7 @@ public class Main {
         }
 
         try {
-            testSquare = new Model("square.json");
+            square = new Model("square.json");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -59,7 +75,7 @@ public class Main {
             e.printStackTrace();
         }
 
-        testSquare.scale.div(4);
+        square.scale.div(4);
         head.scale.div(8);
         loop();
 
@@ -102,13 +118,13 @@ public class Main {
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) -> {
             if ( key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE )
                 glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
-            if (key == GLFW_KEY_UP & direction!= Direction.UP)
+            if (key == GLFW_KEY_UP & direction!= Direction.DOWN)
                 direction = Direction.UP;
-            if (key == GLFW_KEY_DOWN & direction!= Direction.DOWN)
+            if (key == GLFW_KEY_DOWN & direction!= Direction.UP)
                 direction = Direction.DOWN;
-            if (key == GLFW_KEY_LEFT & direction!= Direction.LEFT)
+            if (key == GLFW_KEY_LEFT & direction!= Direction.RIGHT)
                 direction = Direction.LEFT;
-            if (key == GLFW_KEY_RIGHT & direction!= Direction.RIGHT)
+            if (key == GLFW_KEY_RIGHT & direction!= Direction.LEFT)
                 direction = Direction.RIGHT;
         });
 
@@ -146,8 +162,8 @@ public class Main {
     }
 
     private void loop() {
-        int [][] field = new int[8][8];
-
+        int [][] field = new int[width][width];
+        field[7][7] = -1;
         //set up snakes head position
         headPosition = new Vector2i(4, 4);
         // This line is critical for LWJGL's interoperation with GLFW'
@@ -159,8 +175,8 @@ public class Main {
             glClear(GL_COLOR_BUFFER_BIT); // clear the framebuffer
 
             float timeValue = (float) glfwGetTime();
-            int vertexColorLocation = glGetUniformLocation(testSquare.program, "inColour");
-            glUseProgram(testSquare.program);
+            int vertexColorLocation = glGetUniformLocation(square.program, "inColour");
+            glUseProgram(square.program);
 
             //rendering stuff
             for (int i = 0; i<field.length; i++){
@@ -175,33 +191,51 @@ public class Main {
                         head.position = pos.sub(new Vector3f(-1.0f / 8.0f));
                         head.draw();
                     }
+                    // draw tail
                     else if(field[i][j]>0){
                         glUniform4f(vertexColorLocation, 0.2f, 1f, 0.2f, 1.0f);
-                        testSquare.position= pos;
-                        testSquare.draw();
+                        square.position= pos;
+                        square.draw();
                     }
+
+                    else if(field[i][j]==-1){
+                        glUniform4f(vertexColorLocation, 1.0f, 0.2f, 0.2f, 1.0f);
+                        square.position= pos;
+                        square.draw();
+                    }
+                    // draw chequered pattern
                     else if(((i+j)&1)==1) {
                         glUniform4f(vertexColorLocation, 0.2f, 0.2f, 0.2f, 1.0f);
-                        testSquare.position= pos;
-                        testSquare.draw();
+                        square.position= pos;
+                        square.draw();
                     }
                 }
             }
 
             //tick
-            if(glfwGetTime()>1){
+            if(glfwGetTime()>0.4){
                 glfwSetTime(0);
-                for (int i = 0; i<field.length; i++){
-                    for (int j = 0; j<field[i].length;j++){
-                        if (field[i][j]>0) field[i][j]--;
-                    }
-                }
+                // move head
                 field[headPosition.x][headPosition.y]=points;
                 headPosition.add(direction.value);
                 headPosition.x = headPosition.x&7;
                 headPosition.y = headPosition.y&7;
                 if (field[headPosition.x][headPosition.y]>0)
                     break;
+                // eat
+                if (field[headPosition.x][headPosition.y]==-1) {
+                    points++;
+                    findFreeSpace(field, (int) (random()*(width*width-points)), (x, y)-> field[x][y]=-1);
+                }
+                // move tail
+                else{
+                    for (int i = 0; i < field.length; i++) {
+                        for (int j = 0; j < field[i].length; j++) {
+                            if (field[i][j] > 0) field[i][j]--;
+                        }
+                    }
+                }
+
             }
 
             glfwSwapBuffers(window); // swap the color buffers
